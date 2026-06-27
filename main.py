@@ -93,14 +93,62 @@ async def join_room(request: Request):
 
 
 @app.get("/room/{room_id}", response_class=HTMLResponse)
-async def room_page(request: Request, room_id: str, user_id: str = Query(...)):
+async def room_page(request: Request, room_id: str, user_id: str | None = Query(None)):
     room = room_manager.get_room(room_id)
     if not room:
         return RedirectResponse(url="/")
 
+    if not user_id:
+        return HTMLResponse(f"""<!DOCTYPE html>
+<html lang="de">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Raum beitreten — Scrum Poker</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="/static/style.css" rel="stylesheet">
+<style>body{{background:#1a1d23;color:#e0e0e0}}</style>
+</head>
+<body class="d-flex align-items-center min-vh-100">
+<div class="container">
+<div class="row justify-content-center">
+<div class="col-md-6">
+<div class="card bg-dark border-secondary shadow-lg">
+<div class="card-body text-center">
+<h3 class="text-white mb-3">Raum <strong>{room_id}</strong></h3>
+<p class="text-secondary mb-4">Gib deinen Namen ein, um beizutreten</p>
+<form onsubmit="join(event)">
+<div class="mb-3">
+<input id="name-input" class="form-control bg-dark text-white border-secondary" placeholder="Dein Name" required autofocus>
+</div>
+<button type="submit" class="btn btn-primary w-100">Beitreten</button>
+<div id="error-msg" class="alert alert-danger mt-3 d-none"></div>
+</form>
+</div></div></div></div></div>
+<script>
+async function join(e) {{
+    e.preventDefault();
+    const name = document.getElementById('name-input').value;
+    const err = document.getElementById('error-msg');
+    err.classList.add('d-none');
+    const resp = await fetch('/join', {{
+        method:'POST',
+        headers:{{'Content-Type':'application/json'}},
+        body: JSON.stringify({{room_id:'{room_id}',user_name:name}})
+    }});
+    const data = await resp.json();
+    if (data.error) {{
+        err.textContent = data.error;
+        err.classList.remove('d-none');
+    }} else if (data.redirect) {{
+        window.location.href = data.redirect;
+    }}
+}}
+</script>
+</body>
+</html>""")
+
     user = room.get_user_by_id(user_id)
     if not user:
-        return RedirectResponse(url="/")
+        return RedirectResponse(url=f"/room/{room_id}")
 
     return render("room.html", {
         "request": request,
