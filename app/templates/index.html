@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% block title %}Scrum Poker — Start{% endblock %}
+{% block extra_head %}
+<style>
+body { background: #1a1d23; color: #e0e0e0; }
+</style>
+{% endblock %}
+{% block content %}
+<div class="landing-page min-vh-100 d-flex align-items-center py-5">
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-md-8 text-center mb-5">
+                <h1 class="display-4 text-white">🃏 Scrum Poker</h1>
+                <p class="lead text-secondary">Schätze Aufwände gemeinsam im Team</p>
+            </div>
+        </div>
+        <div class="row justify-content-center g-4">
+            <div class="col-md-5">
+                <div class="card bg-dark border-secondary shadow-lg">
+                    <div class="card-body">
+                        <h3 class="card-title mb-3 text-white">Raum erstellen</h3>
+                        <form id="create-form">
+                            <div class="mb-3">
+                                <label class="form-label text-secondary">Raum-Name</label>
+                                <input type="text" class="form-control bg-dark text-white border-secondary" id="create-room-name" value="Sprint Planning" required>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label text-secondary">Dein Name</label>
+                                <input type="text" class="form-control bg-dark text-white border-secondary" id="create-user-name" placeholder="Dein Name" required>
+                            </div>
+                            <button type="submit" class="btn btn-success w-100">Raum erstellen</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-5">
+                <div class="card bg-dark border-secondary shadow-lg">
+                    <div class="card-body">
+                        <h3 class="card-title mb-3 text-white">Raum beitreten</h3>
+                        <form id="join-form">
+                            <div class="mb-3">
+                                <label class="form-label text-secondary">Raum-Code</label>
+                                <input type="text" class="form-control bg-dark text-white border-secondary" id="join-room-code" placeholder="z. B. ABC123" required maxlength="6" style="text-transform: uppercase;">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label text-secondary">Dein Name</label>
+                                <input type="text" class="form-control bg-dark text-white border-secondary" id="join-user-name" placeholder="Dein Name" required>
+                            </div>
+                            <button type="submit" class="btn btn-primary w-100">Beitreten</button>
+                        </form>
+                        <div id="join-error" class="alert alert-danger mt-3 d-none"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+document.getElementById('create-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const roomName = document.getElementById('create-room-name').value;
+    const userName = document.getElementById('create-user-name').value;
+    const resp = await fetch('/create', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({room_name: roomName, user_name: userName}),
+    });
+    const data = await resp.json();
+    if (data.redirect) {
+        window.location.href = data.redirect;
+    }
+});
+
+document.getElementById('join-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const roomId = document.getElementById('join-room-code').value;
+    const userName = document.getElementById('join-user-name').value;
+    const errorDiv = document.getElementById('join-error');
+    errorDiv.classList.add('d-none');
+    const resp = await fetch('/join', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({room_id: roomId, user_name: userName}),
+    });
+    const data = await resp.json();
+    if (data.error) {
+        errorDiv.textContent = data.error;
+        errorDiv.classList.remove('d-none');
+    } else if (data.redirect) {
+        window.location.href = data.redirect;
+    }
+});
+</script>
+{% endblock %}

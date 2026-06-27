@@ -1,0 +1,387 @@
+{% extends "base.html" %}
+{% block title %}{{ room.name }} — Scrum Poker{% endblock %}
+{% block content %}
+<div class="container-fluid vh-100 d-flex flex-column p-0">
+    <div class="row g-0 bg-dark text-white py-2 px-3 align-items-center flex-shrink-0">
+        <div class="col-auto">
+            <a href="/" class="btn btn-sm btn-outline-light">&larr; Verlassen</a>
+        </div>
+        <div class="col">
+            <h5 class="mb-0">{{ room.name }}</h5>
+        </div>
+        <div class="col-auto d-flex align-items-center gap-2">
+            <span class="badge bg-secondary">
+                Code: <strong id="room-code">{{ room.id }}</strong>
+                <button class="btn btn-sm btn-link text-white p-0 ms-1" onclick="copyRoomCode()" title="Code kopieren">📋</button>
+            </span>
+            <button class="btn btn-sm btn-outline-light" onclick="copyRoomLink()">Link kopieren</button>
+        </div>
+    </div>
+
+    <div class="row g-0 flex-grow-1">
+        <div class="col-md-8 d-flex flex-column poker-table p-md-4 p-3">
+            <div class="text-center mb-3">
+                <h4 id="current-story-display" class="text-white mb-1">
+                    {% set cs = room.current_story() %}
+                    {% if cs %}
+                        {{ cs.title }}
+                    {% else %}
+                        Keine Story ausgewählt
+                    {% endif %}
+                </h4>
+                <span id="phase-display" class="badge bg-light text-dark fs-6 px-3">
+                    {% if room.phase.value == "voting" %}
+                        Wähle deine Karte
+                    {% else %}
+                        Aufgedeckt
+                    {% endif %}
+                </span>
+            </div>
+
+            <div class="card-deck-container flex-grow-1 d-flex align-items-center justify-content-center">
+                <div class="card-deck" id="card-deck">
+                    {% for value in card_values %}
+                    <div class="poker-card" data-value="{{ value }}" onclick="selectCard(this)">
+                        <div class="card-inner">
+                            <span class="card-value">{{ value }}</span>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div id="results-area" class="text-center d-none flex-grow-1 d-flex flex-column align-items-center justify-content-center">
+                <div class="row justify-content-center" id="results-container"></div>
+                <div class="mt-2 text-white fs-5" id="stats-display"></div>
+            </div>
+
+            <div class="text-center mt-3 action-buttons flex-shrink-0">
+                {% if user.is_admin %}
+                <div class="btn-group">
+                    <button id="btn-reveal" class="btn btn-warning" onclick="revealVotes()" disabled>Aufdecken</button>
+                    <button id="btn-reset" class="btn btn-info" onclick="resetRound()" disabled>Zurücksetzen</button>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="col-md-4 sidebar bg-dark p-3 d-flex flex-column flex-shrink-0">
+            <div class="mb-3">
+                <h6 class="text-white-50 text-uppercase small mb-2">Wurfgeschoss wählen</h6>
+                <div class="emoji-picker" id="emoji-picker">
+                    <span class="emoji-option selected" data-emoji="📄" onclick="selectEmoji(this)">📄</span>
+                    <span class="emoji-option" data-emoji="💩" onclick="selectEmoji(this)">💩</span>
+                    <span class="emoji-option" data-emoji="🍅" onclick="selectEmoji(this)">🍅</span>
+                    <span class="emoji-option" data-emoji="🥚" onclick="selectEmoji(this)">🥚</span>
+                    <span class="emoji-option" data-emoji="🧁" onclick="selectEmoji(this)">🧁</span>
+                    <span class="emoji-option" data-emoji="💣" onclick="selectEmoji(this)">💣</span>
+                    <span class="emoji-option" data-emoji="🎱" onclick="selectEmoji(this)">🎱</span>
+                    <span class="emoji-option" data-emoji="🪨" onclick="selectEmoji(this)">🪨</span>
+                    <span class="emoji-option" data-emoji="🥪" onclick="selectEmoji(this)">🥪</span>
+                    <span class="emoji-option" data-emoji="🐟" onclick="selectEmoji(this)">🐟</span>
+                    <span class="emoji-option" data-emoji="👟" onclick="selectEmoji(this)">👟</span>
+                </div>
+            </div>
+            <div class="mb-3">
+                <h6 class="text-white-50 text-uppercase small mb-2">Teilnehmer</h6>
+                <ul class="list-unstyled mb-0" id="user-list">
+                    {% for u in room.users.values() %}
+                    <li class="user-item d-flex align-items-center py-1" data-user-id="{{ u.id }}">
+                        <span class="user-name text-white">{{ u.name }}</span>
+                        {% if u.is_admin %}<span class="badge bg-warning text-dark ms-1">Admin</span>{% endif %}
+                        <span class="vote-status ms-2" data-user-id="{{ u.id }}">
+                            {% if u.id in room.votes %}✅{% else %}⏳{% endif %}
+                        </span>
+                        {% if u.id != user.id %}
+                        <button class="btn btn-sm btn-outline-warning py-0 px-1 ms-1 throw-btn"
+                            onclick="throwPaper('{{ u.id }}')" title="Werfen" id="throw-{{ u.id }}">⚾</button>
+                        {% endif %}
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+
+            <div class="flex-grow-1 d-flex flex-column" style="min-height: 0;">
+                <h6 class="text-white-50 text-uppercase small mb-2">Stories</h6>
+                {% if user.is_admin %}
+                <div class="input-group input-group-sm mb-2 flex-shrink-0">
+                    <input type="text" id="story-input" class="form-control" placeholder="Neue Story ..."
+                           onkeydown="if(event.key==='Enter') addStory()">
+                    <button class="btn btn-primary" onclick="addStory()">+</button>
+                </div>
+                {% endif %}
+                <ul class="list-unstyled mb-0 story-list overflow-auto" id="story-list">
+                    {% for story in room.stories %}
+                    <li class="story-item d-flex align-items-center py-1" data-story-id="{{ story.id }}">
+                        <span class="story-title text-white small">{{ story.title }}</span>
+                        {% if user.is_admin %}
+                        <span class="story-actions ms-auto flex-shrink-0">
+                            <button class="btn btn-sm btn-outline-info py-0 px-1 me-1"
+                                onclick="selectStory('{{ story.id }}')"
+                                {% set cs = room.current_story() %}
+                                {% if cs and story.id == cs.id %}disabled{% endif %}>
+                                {% if cs and story.id == cs.id %}Aktiv{% else %}Wählen{% endif %}
+                            </button>
+                            <button class="btn btn-sm btn-outline-danger py-0 px-1"
+                                onclick="deleteStory('{{ story.id }}')">🗑</button>
+                        </span>
+                        {% endif %}
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="paper-ball-container" style="position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:9999;overflow:hidden;"></div>
+
+{% endblock %}
+{% block scripts %}
+<script>
+const ROOM_ID = '{{ room.id }}';
+const USER_ID = '{{ user.id }}';
+const IS_ADMIN = {{ 'true' if user.is_admin else 'false' }};
+
+let ws = null;
+let selectedValue = null;
+let selectedEmoji = '📄';
+let reconnectTimer = null;
+
+function connect() {
+    if (ws && ws.readyState === WebSocket.OPEN) return;
+    ws = new WebSocket(`/ws/${ROOM_ID}?user_id=${USER_ID}`);
+
+    ws.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        if (data.type === 'state') {
+            updateState(data);
+        } else if (data.type === 'paper_ball') {
+            showPaperBall(data.from, data.target, data.emoji || '📄');
+        }
+    };
+
+    ws.onclose = () => {
+        ws = null;
+        if (!reconnectTimer) {
+            reconnectTimer = setTimeout(() => {
+                reconnectTimer = null;
+                connect();
+            }, 2000);
+        }
+    };
+
+    ws.onerror = () => {
+        ws.close();
+    };
+}
+
+function send(msg) {
+    if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify(msg));
+    }
+}
+
+function updateState(state) {
+    document.getElementById('phase-display').textContent =
+        ({'voting':'Wähle deine Karte','revealed':'Aufgedeckt'})[state.phase] || state.phase;
+
+    const storyDisplay = document.getElementById('current-story-display');
+    storyDisplay.textContent = state.current_story ? state.current_story.title : 'Keine Story ausgewählt';
+
+    const userList = document.getElementById('user-list');
+    userList.innerHTML = '';
+    state.users.forEach(u => {
+        const li = document.createElement('li');
+        li.className = 'user-item d-flex align-items-center py-1';
+        let throwBtn = '';
+        if (u.id !== USER_ID) {
+            throwBtn = `<button class="btn btn-sm btn-outline-warning py-0 px-1 ms-1 throw-btn" onclick="throwPaper('${u.id}')" title="Werfen">⚾</button>`;
+        }
+        li.innerHTML = `<span class="user-name text-white">${esc(u.name)}</span>`
+            + (u.is_admin ? '<span class="badge bg-warning text-dark ms-1">Admin</span>' : '')
+            + `<span class="vote-status ms-2">${u.has_voted ? '✅' : '⏳'}</span>`
+            + throwBtn;
+        userList.appendChild(li);
+    });
+
+    const storyList = document.getElementById('story-list');
+    storyList.innerHTML = '';
+    state.stories.forEach(s => {
+        const li = document.createElement('li');
+        li.className = 'story-item d-flex align-items-center py-1';
+        const isActive = state.current_story && s.id === state.current_story.id;
+        let actionsHtml = '';
+        if (IS_ADMIN) {
+            actionsHtml = `<span class="story-actions ms-auto flex-shrink-0">
+                <button class="btn btn-sm btn-outline-info py-0 px-1 me-1" onclick="selectStory('${s.id}')"${isActive?' disabled':''}>
+                    ${isActive ? 'Aktiv' : 'Wählen'}
+                </button>
+                <button class="btn btn-sm btn-outline-danger py-0 px-1" onclick="deleteStory('${s.id}')">🗑</button>
+            </span>`;
+        }
+        li.innerHTML = `<span class="story-title text-white small">${esc(s.title)}</span>${actionsHtml}`;
+        storyList.appendChild(li);
+    });
+
+    if (IS_ADMIN) {
+        const revealBtn = document.getElementById('btn-reveal');
+        const resetBtn = document.getElementById('btn-reset');
+        revealBtn.disabled = state.phase === 'revealed';
+        resetBtn.disabled = state.phase !== 'revealed';
+    }
+
+    const resultsArea = document.getElementById('results-area');
+    const deckContainer = document.querySelector('.card-deck-container');
+
+    if (state.phase === 'revealed' && Object.keys(state.votes).length > 0) {
+        resultsArea.classList.remove('d-none');
+        deckContainer.classList.add('d-none');
+
+        const container = document.getElementById('results-container');
+        container.innerHTML = '';
+        const entries = Object.entries(state.votes);
+        entries.forEach(([name, value]) => {
+            const col = document.createElement('div');
+            col.className = 'col-auto mb-2';
+            col.innerHTML = `<div class="result-card"><div class="result-value">${value}</div><div class="result-name">${esc(name)}</div></div>`;
+            container.appendChild(col);
+        });
+
+        const numericValues = entries
+            .filter(([_, v]) => typeof v === 'number' && !Number.isNaN(v))
+            .map(([_, v]) => v);
+        const statsEl = document.getElementById('stats-display');
+        if (numericValues.length > 0) {
+            const avg = numericValues.reduce((a, b) => a + b, 0) / numericValues.length;
+            statsEl.textContent = `∅ ${avg.toFixed(1)}  |  Min ${Math.min(...numericValues)}  |  Max ${Math.max(...numericValues)}`;
+        } else {
+            statsEl.textContent = '';
+        }
+    } else {
+        resultsArea.classList.add('d-none');
+        deckContainer.classList.remove('d-none');
+    }
+}
+
+function selectCard(el) {
+    const cards = document.querySelectorAll('.poker-card');
+    if (el.classList.contains('selected')) {
+        el.classList.remove('selected');
+        selectedValue = null;
+        send({type: 'vote', value: null});
+    } else {
+        cards.forEach(c => c.classList.remove('selected'));
+        el.classList.add('selected');
+        selectedValue = el.dataset.value;
+        send({type: 'vote', value: selectedValue});
+    }
+}
+
+function revealVotes() { send({type: 'reveal'}); }
+function resetRound() { send({type: 'reset'}); }
+
+function addStory() {
+    const input = document.getElementById('story-input');
+    const title = input.value.trim();
+    if (title) {
+        send({type: 'add_story', title});
+        input.value = '';
+        input.focus();
+    }
+}
+
+function selectStory(storyId) { send({type: 'select_story', story_id: storyId}); }
+
+function deleteStory(storyId) {
+    if (confirm('Story löschen?')) {
+        send({type: 'delete_story', story_id: storyId});
+    }
+}
+
+function selectEmoji(el) {
+    document.querySelectorAll('.emoji-option').forEach(e => e.classList.remove('selected'));
+    el.classList.add('selected');
+    selectedEmoji = el.dataset.emoji;
+}
+
+function throwPaper(targetId) {
+    send({type: 'throw_paper', target_id: targetId, emoji: selectedEmoji});
+}
+
+function showPaperBall(fromName, targetName, emoji) {
+    const container = document.getElementById('paper-ball-container');
+    const ball = document.createElement('div');
+    ball.className = 'paper-ball';
+    ball.textContent = emoji || '📄';
+
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const margin = 80;
+
+    const endX = margin + Math.random() * (vw - margin * 2);
+    const endY = margin + Math.random() * (vh - margin * 2);
+
+    const startEdge = Math.floor(Math.random() * 4);
+    let startX, startY;
+    switch (startEdge) {
+        case 0: startX = -40; startY = Math.random() * vh; break;
+        case 1: startX = vw + 40; startY = Math.random() * vh; break;
+        case 2: startX = Math.random() * vw; startY = -40; break;
+        case 3: startX = Math.random() * vw; startY = vh + 40; break;
+    }
+
+    const deltaX = endX - startX;
+    const deltaY = endY - startY;
+    const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+    const duration = Math.max(1200, distance * 2.5);
+
+    container.appendChild(ball);
+
+    const anim = ball.animate([
+        { transform: `translate(${startX}px, ${startY}px) rotate(0deg) scale(0.8)`, opacity: 1, offset: 0 },
+        { transform: `translate(${startX + deltaX * 0.7}px, ${startY + deltaY * 0.7}px) rotate(360deg) scale(1)`, opacity: 1, offset: 0.6 },
+        { transform: `translate(${endX}px, ${endY}px) rotate(720deg) scale(0.3)`, opacity: 0, offset: 1 },
+    ], { duration, easing: 'ease-in-out', fill: 'forwards' });
+
+    const label = document.createElement('div');
+    label.className = 'paper-ball-label';
+    label.textContent = `${esc(fromName)} → ${esc(targetName)}`;
+    label.style.left = endX - 40 + 'px';
+    label.style.top = endY - 20 + 'px';
+    container.appendChild(label);
+
+    const labelDuration = duration + 2500;
+    label.animate([
+        { opacity: 0, transform: 'translateY(8px)' },
+        { opacity: 1, transform: 'translateY(0)', offset: 30 / labelDuration },
+        { opacity: 1, transform: 'translateY(0)', offset: 1 - 500 / labelDuration },
+        { opacity: 0, transform: 'translateY(-8px)' },
+    ], { duration: labelDuration, easing: 'ease-in-out', fill: 'forwards' });
+
+    anim.onfinish = () => {
+        ball.remove();
+    };
+    setTimeout(() => label.remove(), labelDuration);
+}
+
+function copyRoomCode() {
+    navigator.clipboard.writeText(document.getElementById('room-code').textContent)
+        .then(() => { /* copied */ });
+}
+
+function copyRoomLink() {
+    const link = window.location.href.split('?')[0];
+    navigator.clipboard.writeText(link)
+        .then(() => alert('Link kopiert!'));
+}
+
+function esc(text) {
+    const d = document.createElement('div');
+    d.textContent = text;
+    return d.innerHTML;
+}
+
+connect();
+</script>
+{% endblock %}
