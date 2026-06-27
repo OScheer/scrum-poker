@@ -54,6 +54,13 @@ class Room:
             return self.stories[self.current_story_idx]
         return None
 
+    @property
+    def average(self) -> Optional[float]:
+        if self.phase != Phase.REVEALED or not self.votes:
+            return None
+        numeric = [v for v in self.votes.values() if isinstance(v, (int, float))]
+        return round(sum(numeric) / len(numeric), 1) if numeric else None
+
     def to_public_dict(self) -> dict:
         users_list = []
         for u in self.users.values():
@@ -98,6 +105,11 @@ class Room:
                 if user:
                     revealed[user.name] = val
             result["votes"] = revealed
+
+            numeric = [v for v in self.votes.values() if isinstance(v, (int, float))]
+            result["average"] = round(sum(numeric) / len(numeric), 1) if numeric else None
+        else:
+            result["average"] = None
 
         return result
 

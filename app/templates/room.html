@@ -114,6 +114,10 @@
                     {% for story in room.stories %}
                     <li class="story-item d-flex align-items-center py-1" data-story-id="{{ story.id }}">
                         <span class="story-title text-white small">{{ story.title }}</span>
+                        {% set cs = room.current_story() %}
+                        {% if cs and story.id == cs.id and room.phase.value == "revealed" and room.average %}
+                        <span class="story-avg badge bg-warning text-dark ms-1">∅ {{ room.average }}</span>
+                        {% endif %}
                         {% if user.is_admin %}
                         <span class="story-actions ms-auto flex-shrink-0">
                             <button class="btn btn-sm btn-outline-info py-0 px-1 me-1"
@@ -220,7 +224,11 @@ function updateState(state) {
                 <button class="btn btn-sm btn-outline-danger py-0 px-1" onclick="deleteStory('${s.id}')">🗑</button>
             </span>`;
         }
-        li.innerHTML = `<span class="story-title text-white small">${esc(s.title)}</span>${actionsHtml}`;
+        let avgHtml = '';
+        if (isActive && state.phase === 'revealed' && state.average !== null && state.average !== undefined) {
+            avgHtml = `<span class="story-avg badge bg-warning text-dark ms-1">∅ ${state.average}</span>`;
+        }
+        li.innerHTML = `<span class="story-title text-white small">${esc(s.title)}</span>${avgHtml}${actionsHtml}`;
         storyList.appendChild(li);
     });
 
