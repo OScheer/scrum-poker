@@ -51,8 +51,8 @@
             </div>
 
             <div id="results-area" class="text-center d-none flex-grow-1 d-flex flex-column align-items-center justify-content-center">
+                <div class="mb-3 text-white fs-4" id="stats-display"></div>
                 <div class="row justify-content-center" id="results-container"></div>
-                <div class="mt-2 text-white fs-5" id="stats-display"></div>
             </div>
 
             <div class="text-center mt-3 action-buttons flex-shrink-0">
@@ -256,15 +256,16 @@ function updateState(state) {
             container.appendChild(col);
         });
 
+        const statsEl = document.getElementById('stats-display');
         const numericValues = entries
             .filter(([_, v]) => typeof v === 'number' && !Number.isNaN(v))
             .map(([_, v]) => v);
-        const statsEl = document.getElementById('stats-display');
         if (numericValues.length > 0) {
-            const avg = numericValues.reduce((a, b) => a + b, 0) / numericValues.length;
-            statsEl.textContent = `∅ ${avg.toFixed(1)}  |  Min ${Math.min(...numericValues)}  |  Max ${Math.max(...numericValues)}`;
+            const min = Math.min(...numericValues);
+            const max = Math.max(...numericValues);
+            statsEl.textContent = `∅ ${state.average ?? numericValues.reduce((a, b) => a + b, 0) / numericValues.length}  |  Min ${min}  |  Max ${max}`;
         } else {
-            statsEl.textContent = '';
+            statsEl.textContent = state.average !== null && state.average !== undefined ? `∅ ${state.average}` : '';
         }
     } else {
         resultsArea.classList.add('d-none');
